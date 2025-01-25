@@ -1,15 +1,25 @@
 #!/bin/bash
 
-# Script to clone a Git repository
+# Script to clone multiple Git repositories
 
-REPO_URL="https://github.com/Sanix-Darker/Brute-Force-Login.git"
+# Define the repository URLs
+REPO1="https://github.com/LandGrey/pydictor.git"
+REPO2="https://github.com/Sanix-Darker/Brute-Force-Login.git"
 
-# Attempt to clone the repository
-sudo git clone $REPO_URL
+# Function to clone a repository
+clone_repo() {
+    local repo_url=$1
+    echo "Cloning repository: $repo_url"
+    sudo git clone "$repo_url"
 
-# Check if the clone was successful
-if [ $? -eq 0 ]; then
-    echo "Repository cloned successfully."
-else
-    echo "Failed to clone the repository. Please check the URL."
-fi
+    # Check if the clone was successful
+    if [ $? -eq 0 ]; then
+        echo "Repository cloned successfully: $repo_url"
+    else
+        echo "Failed to clone the repository: $repo_url"
+    fi
+}
+
+# Clone the repositories
+clone_repo "$REPO1"
+clone_repo "$REPO2"
