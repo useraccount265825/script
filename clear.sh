@@ -74,6 +74,7 @@ sudo rm -rf /tmp/*
 echo "Clearing Bash history..."
 history -c
 sudo rm -rf /home/$current_user/.bash_history
+sudo rm -rf /home/$current_user/.zsh_history
 
 # Reset IP address
 echo "Resetting IP address..."
