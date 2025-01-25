@@ -5,6 +5,7 @@
 # Define the repository URLs
 REPO1="https://github.com/LandGrey/pydictor.git"
 REPO2="https://github.com/Sanix-Darker/Brute-Force-Login.git"
+REPO3="https://github.com/threat9/routersploit.git"
 
 # Function to clone a repository
 clone_repo() {
@@ -23,3 +24,4 @@ clone_repo() {
 # Clone the repositories
 clone_repo "$REPO1"
 clone_repo "$REPO2"
+clone_repo "$REPO3"
