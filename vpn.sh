@@ -3,50 +3,79 @@
 # Define the directory containing the OpenVPN configuration files
 CONFIG_DIR="$HOME/Downloads"
 
-# Find all .ovpn files in the directory
-OVPN_FILES=("$CONFIG_DIR"/*.ovpn)
+# Function to find all .ovpn files in the directory
+function find_ovpn_files {
+    OVPN_FILES=("$CONFIG_DIR"/*.ovpn)
+    if [ ${#OVPN_FILES[@]} -eq 0 ]; then
+        echo "Error: No .ovpn files found in $CONFIG_DIR."
+        exit 1
+    fi
+}
 
-# Check if there are any .ovpn files
-if [ ${#OVPN_FILES[@]} -eq 0 ]; then
-    echo "Error: No .ovpn files found in $CONFIG_DIR."
-    exit 1
-fi
-
-# Pick a random .ovpn file
-RANDOM_FILE=${OVPN_FILES[RANDOM % ${#OVPN_FILES[@]}]}
-
-echo "Starting OpenVPN with configuration: $RANDOM_FILE"
-
-# Start OpenVPN in the background
-sudo openvpn --config "$RANDOM_FILE" &
-
-# Get the PID of the OpenVPN process
-VPN_PID=$!
+# Function to start OpenVPN with a random configuration
+function start_vpn {
+    find_ovpn_files
+    RANDOM_FILE=${OVPN_FILES[RANDOM % ${#OVPN_FILES[@]}]}
+    echo "Starting OpenVPN with configuration: $RANDOM_FILE"
+    sudo openvpn --config "$RANDOM_FILE" &
+    VPN_PID=$!
+}
 
 # Function to display the current IP address
 function display_ip {
     CURRENT_IP=$(curl -s ifconfig.me)
-    echo "Current IP Address: $CURRENT_IP"
+    echo -e "\nCurrent IP Address: $CURRENT_IP"
 }
 
-# Function to display remaining time (for demonstration, we'll just use a countdown)
+# Function to display the remaining time
 function display_remaining_time {
-    # Set the duration for the VPN session (in seconds)
-    DURATION=3600  # 1 hour
+    DURATION=600  # 10 minutes
     while [ $DURATION -gt 0 ]; do
-        echo "Remaining time: $((DURATION / 60)) minutes and $((DURATION % 60)) seconds"
-        sleep 60
-        DURATION=$((DURATION - 60))
+        echo -ne "Remaining time: $((DURATION / 60)) minutes and $((DURATION % 60)) seconds\033[0K\r"
+        sleep 1
+        DURATION=$((DURATION - 1))
     done
 }
 
-# Start displaying the remaining time and current IP address
-display_remaining_time &  # Run in the background
-IP_DISPLAY_PID=$!
+# Function to handle cleanup on exit
+function cleanup {
+    echo -e "\nDisconnecting OpenVPN..."
+    if kill -0 $VPN_PID 2>/dev/null; then
+        sudo kill $VPN_PID
+        wait $VPN_PID 2>/dev/null
+        echo "OpenVPN has stopped."
+    fi
+}
 
-# Monitor the OpenVPN process
+# Function to handle reconnection after a delay
+function reconnect_vpn {
+    cleanup
+    echo "Waiting for 10 seconds before reconnecting..."  # Short wait before reconnecting
+    sleep 10
+    start_vpn
+}
+
+# Trap SIGINT (Ctrl + C) to call cleanup and reconnect
+trap 'reconnect_vpn' SIGINT
+
+# Start the first VPN connection
+start_vpn
+
+# Display the current IP address
+display_ip
+
+# Start displaying the remaining time
+display_remaining_time &  # Run in the background
+TIME_DISPLAY_PID=$!
+
+# Wait for the OpenVPN process
 wait $VPN_PID
 
 # Clean up background processes
-kill $IP_DISPLAY_PID
-echo "OpenVPN has stopped."
+kill $TIME_DISPLAY_PID 2>/dev/null
+
+# After the VPN session ends, display the current IP address again
+display_ip
+
+# Start the reconnection process
+reconnect_vpn
