@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the directory containing the OpenVPN configuration files
-CONFIG_DIR="/home/$(whoami)/Downloads"
+CONFIG_DIR="$HOME/Downloads"
 
 # Find all .ovpn files in the directory
 OVPN_FILES=("$CONFIG_DIR"/*.ovpn)
@@ -12,29 +12,41 @@ if [ ${#OVPN_FILES[@]} -eq 0 ]; then
     exit 1
 fi
 
-# Initialize a variable to keep track of the last used file
-LAST_USED_FILE=""
+# Pick a random .ovpn file
+RANDOM_FILE=${OVPN_FILES[RANDOM % ${#OVPN_FILES[@]}]}
 
-# Function to start OpenVPN with a random configuration
-start_vpn() {
-    # Pick a random .ovpn file that is not the last used one
-    while true; do
-        RANDOM_FILE=${OVPN_FILES[RANDOM % ${#OVPN_FILES[@]}]}
-        if [[ "$RANDOM_FILE" != "$LAST_USED_FILE" ]]; then
-            break
-        fi
-    done
+echo "Starting OpenVPN with configuration: $RANDOM_FILE"
 
-    echo "Starting OpenVPN with configuration: $RANDOM_FILE"
-    sudo openvpn --config "$RANDOM_FILE" --daemon
-    LAST_USED_FILE="$RANDOM_FILE"
+# Start OpenVPN in the background
+sudo openvpn --config "$RANDOM_FILE" &
+
+# Get the PID of the OpenVPN process
+VPN_PID=$!
+
+# Function to display the current IP address
+function display_ip {
+    CURRENT_IP=$(curl -s ifconfig.me)
+    echo "Current IP Address: $CURRENT_IP"
 }
 
-# Start the first VPN connection
-start_vpn
+# Function to display remaining time (for demonstration, we'll just use a countdown)
+function display_remaining_time {
+    # Set the duration for the VPN session (in seconds)
+    DURATION=3600  # 1 hour
+    while [ $DURATION -gt 0 ]; do
+        echo "Remaining time: $((DURATION / 60)) minutes and $((DURATION % 60)) seconds"
+        sleep 60
+        DURATION=$((DURATION - 60))
+    done
+}
 
-# Reconnect every 10 minutes
-while true; do
-    sleep 600  # Sleep for 10 minutes
-    start_vpn
-done
+# Start displaying the remaining time and current IP address
+display_remaining_time &  # Run in the background
+IP_DISPLAY_PID=$!
+
+# Monitor the OpenVPN process
+wait $VPN_PID
+
+# Clean up background processes
+kill $IP_DISPLAY_PID
+echo "OpenVPN has stopped."
