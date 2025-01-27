@@ -1,55 +1,73 @@
 #!/bin/bash
 
-# Base URL for fetching the .ovpn files
-BASE_URL="https://www.freeopenvpn.org"
+# Get the current user's username
+USER_NAME=$(whoami)
 
-# Array of URLs to fetch .ovpn files from
-URLS=(
-    "$BASE_URL/private.php?cntid=USA&lang=en"
-    "$BASE_URL/private.php?cntid=Russia&lang=en"
-    "$BASE_URL/private.php?cntid=Japan&lang=en"
-    "$BASE_URL/private.php?cntid=Korea&lang=en"
-    "$BASE_URL/private.php?cntid=Thailand&lang=en"
-)
+# Define the base URL and the download directory
+BASE_URL="https://www.vpnbook.com"
+URL="$BASE_URL/freevpn"
+DOWNLOAD_DIR="/home/$USER_NAME/Downloads"  # Construct the Downloads path
 
-# Create a directory to store the downloaded .ovpn files
-DOWNLOAD_DIR="$HOME/Downloads/"
+# Create the download directory if it doesn't exist
 mkdir -p "$DOWNLOAD_DIR"
 
-# Loop through each URL
-for URL in "${URLS[@]}"; do
-    echo "Fetching .ovpn files from $URL..."
+# Change to the download directory
+cd "$DOWNLOAD_DIR" || exit
 
-    # Temporary file to store the HTML content
-    TEMP_HTML=$(mktemp)
+# Download the webpage content
+echo "Downloading webpage content..."
+curl -s "$URL" -o page.html
 
-    # Fetch the HTML content
-    curl -s "$URL" -o "$TEMP_HTML"
+# Extract all .zip file links from the specified class
+echo "Extracting .zip file links..."
+ZIP_LINKS=$(grep -oP 'href="\K[^"]*\.zip' page.html)
 
-    # Extract the .ovpn file links from the class "data"
-    OVPN_LINKS=$(grep -oP 'class="data".*?href="\K[^"]*\.ovpn' "$TEMP_HTML")
+# Check if any links were found
+if [ -z "$ZIP_LINKS" ]; then
+    echo "No .zip links found. Please check the HTML structure."
+    exit 1
+fi
 
-    # Check if any .ovpn links were found
-    if [ -z "$OVPN_LINKS" ]; then
-        echo "No .ovpn files found at $URL."
-        rm "$TEMP_HTML"
-        continue
+# Download each .zip file
+for LINK in $ZIP_LINKS; do
+    # Prepend the base URL to the link if it is a relative URL
+    if [[ "$LINK" != http* ]]; then
+        LINK="$BASE_URL$LINK"
     fi
-
-    # Download each .ovpn file that contains "_udp"
-    for LINK in $OVPN_LINKS; do
-        # Check if the link contains "_udp"
-        if [[ "$LINK" == *_udp.ovpn ]]; then
-            # Construct the full URL
-            FULL_URL="$BASE_URL$LINK"
-            FILENAME=$(basename "$LINK")
-            echo "Downloading $FILENAME from $FULL_URL..."
-            curl -o "$DOWNLOAD_DIR/$FILENAME" "$FULL_URL"
-        fi
-    done
-
-    # Clean up
-    rm "$TEMP_HTML"
+    echo "Downloading $LINK..."
+    wget "$LINK" || { echo "Failed to download $LINK"; exit 1; }
 done
 
-echo "Download completed. Files saved to $DOWNLOAD_DIR."
+# Unzip all downloaded .zip files and extract only -udp53.ovpn files
+for ZIP_FILE in *.zip; do
+    if [[ -f "$ZIP_FILE" ]]; then
+        echo "Unzipping $ZIP_FILE..."
+        # List the contents of the zip file
+        unzip -l "$ZIP_FILE"
+        
+        # Extract only the -udp53.ovpn files from the specific directory
+        unzip -o "$ZIP_FILE" "*-udp53.ovpn" -d "$DOWNLOAD_DIR" || { echo "Failed to unzip $ZIP_FILE"; exit 1; }
+    fi
+done
+
+# Copy the -udp53.ovpn files to the Downloads directory and remove the folders
+echo "Copying -udp53.ovpn files to $DOWNLOAD_DIR and cleaning up..."
+for dir in */; do
+    if ls "$dir"*udp53.ovpn 1> /dev/null 2>&1; then
+        cp "$dir"*udp53.ovpn "$DOWNLOAD_DIR"
+        echo "Copied $dir*udp53.ovpn to $DOWNLOAD_DIR"
+    else
+        echo "No -udp53.ovpn file found in $dir"
+    fi
+done
+
+# Remove all folders that were processed
+echo "Removing all folders..."
+rm -r */  # Removed 'sudo' to ensure it runs as the current user
+
+# Clean up
+echo "Cleaning up..."
+rm page.html
+rm *.zip
+
+echo "Done! All -udp53.ovpn files have been extracted to $DOWNLOAD_DIR."
