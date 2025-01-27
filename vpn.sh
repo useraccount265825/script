@@ -27,16 +27,6 @@ function display_ip {
     echo -e "\nCurrent IP Address: $CURRENT_IP"
 }
 
-# Function to display the remaining time
-function display_remaining_time {
-    DURATION=600  # 10 minutes
-    while [ $DURATION -gt 0 ]; do
-        echo -ne "Remaining time: $((DURATION / 60)) minutes and $((DURATION % 60)) seconds\033[0K\r"
-        sleep 1
-        DURATION=$((DURATION - 1))
-    done
-}
-
 # Function to handle cleanup on exit
 function cleanup {
     echo -e "\nDisconnecting OpenVPN..."
@@ -47,16 +37,8 @@ function cleanup {
     fi
 }
 
-# Function to handle reconnection after a delay
-function reconnect_vpn {
-    cleanup
-    echo "Waiting for 10 seconds before reconnecting..."  # Short wait before reconnecting
-    sleep 10
-    start_vpn
-}
-
-# Trap SIGINT (Ctrl + C) to call cleanup and reconnect
-trap 'reconnect_vpn' SIGINT
+# Trap SIGINT (Ctrl + C) to call cleanup
+trap 'cleanup' SIGINT
 
 # Start the first VPN connection
 start_vpn
@@ -64,18 +46,8 @@ start_vpn
 # Display the current IP address
 display_ip
 
-# Start displaying the remaining time
-display_remaining_time &  # Run in the background
-TIME_DISPLAY_PID=$!
-
 # Wait for the OpenVPN process
 wait $VPN_PID
 
-# Clean up background processes
-kill $TIME_DISPLAY_PID 2>/dev/null
-
 # After the VPN session ends, display the current IP address again
 display_ip
-
-# Start the reconnection process
-reconnect_vpn
